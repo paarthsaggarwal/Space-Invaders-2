@@ -1,307 +1,183 @@
-import pygame 
-import time
 import math
+import random
 
+import pygame
+from pygame import mixer
 
+# Intialize the pygame
 pygame.init()
 
-def scale_image(img, factor):
-    size = round(img.get_width() * factor), round(img.get_height() * factor)
-    return pygame.transform.scale(img, size)
+# create the screen
+screen = pygame.display.set_mode((800, 600))
 
+# Background
+background = pygame.image.load('background.png')
 
-def blit_rotate_center(win, image, top_left, angle):
-    rotated_image = pygame.transform.rotate(image, angle)
-    new_rect = rotated_image.get_rect(
-        center=image.get_rect(topleft=top_left).center)
-    win.blit(rotated_image, new_rect.topleft)
-
-def blit_text_center(win, font, text):
-    render = font.render(text, 1, (200, 200, 200))
-    win.blit(render, (win.get_width()/2 - render.get_width() /
-                      2, win.get_height()/2 - render.get_height()/2))
-
-GRASS = scale_image(pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/grass.jpg'), 2.5)
-TRACK = scale_image(pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/track.png'), 0.9)
+# Sound
+mixer.music.load("background.wav")
+mixer.music.play(-1)
 
-TRACK_BORDER = scale_image(pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/track-border.png'), 0.9)
-TRACK_BORDER_MASK = pygame.mask.from_surface(TRACK_BORDER)
+# Caption and Icon
+pygame.display.set_caption("Space Invader")
+icon = pygame.image.load('ufo.png')
+pygame.display.set_icon(icon)
 
-FINISH = pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/finish.png')
-FINISH_MASK = pygame.mask.from_surface(FINISH)
-FINISH_POSITION = (130, 250)
+# Player
+playerImg = pygame.image.load('player.png')
+playerX = 370
+playerY = 480
+playerX_change = 0
 
-RED_CAR = scale_image(pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/red-car.png'), 0.55)
-GREEN_CAR = scale_image(pygame.image.load(r'/Users/paarth/OneDrive - qerdp.co.uk/Coding/Car racing/imgs/white-car.png'), 0.55)
+# Enemy
+enemyImg = []
+enemyX = []
+enemyY = []
+enemyX_change = []
+enemyY_change = []
+num_of_enemies = 6
 
-WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Racing Game!")
+for i in range(num_of_enemies):
+    enemyImg.append(pygame.image.load('enemy.png'))
+    enemyX.append(random.randint(0, 736))
+    enemyY.append(random.randint(50, 150))
+    enemyX_change.append(4)
+    enemyY_change.append(40)
 
-MAIN_FONT = pygame.font.SysFont("arial", 44)
+# Bullet
 
-FPS = 60
-PATH = [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
-        (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
+# Ready - You can't see the bullet on the screen
+# Fire - The bullet is currently moving
 
+bulletImg = pygame.image.load('bullet.png')
+bulletX = 0
+bulletY = 480
+bulletX_change = 0
+bulletY_change = 10
+bullet_state = "ready"
 
-class GameInfo:
-    LEVELS = 10
+# Score
 
-    def __init__(self, level=1):
-        self.level = level
-        self.started = False
-        self.level_start_time = 0
+score_value = 0
+font = pygame.font.Font('freesansbold.ttf', 32)
 
-    def next_level(self):
-        self.level += 1
-        self.started = False
+textX = 10
+testY = 10
 
-    def reset(self):
-        self.level = 1
-        self.started = False
-        self.level_start_time = 0
+# Game Over
+over_font = pygame.font.Font('freesansbold.ttf', 64)
 
-    def game_finished(self):
-        return self.level > self.LEVELS
 
-    def start_level(self):
-        self.started = True
-        self.level_start_time = time.time()
+def show_score(x, y):
+    score = font.render("Score : " + str(score_value), True, (255, 255, 255))
+    screen.blit(score, (x, y))
 
-    def get_level_time(self):
-        if not self.started:
-            return 0
-        return round(time.time() - self.level_start_time)
 
-
-class AbstractCar:
-    def __init__(self, max_vel, rotation_vel):
-        self.img = self.IMG
-        self.max_vel = max_vel
-        self.vel = 0
-        self.rotation_vel = rotation_vel
-        self.angle = 0
-        self.x, self.y = self.START_POS
-        self.acceleration = 0.1
-
-    def rotate(self, left=False, right=False):
-        if left:
-            self.angle += self.rotation_vel
-        elif right:
-            self.angle -= self.rotation_vel
-
-    def draw(self, win):
-        blit_rotate_center(win, self.img, (self.x, self.y), self.angle)
-
-    def move_forward(self):
-        self.vel = min(self.vel + self.acceleration, self.max_vel)
-        self.move()
+def game_over_text():
+    over_text = over_font.render("GAME OVER", True, (255, 255, 255))
+    screen.blit(over_text, (200, 250))
 
-    def move_backward(self):
-        self.vel = max(self.vel - self.acceleration, -self.max_vel/2)
-        self.move()
 
-    def move(self):
-        radians = math.radians(self.angle)
-        vertical = math.cos(radians) * self.vel
-        horizontal = math.sin(radians) * self.vel
-
-        self.y -= vertical
-        self.x -= horizontal
+def player(x, y):
+    screen.blit(playerImg, (x, y))
 
-    def collide(self, mask, x=0, y=0):
-        car_mask = pygame.mask.from_surface(self.img)
-        offset = (int(self.x - x), int(self.y - y))
-        poi = mask.overlap(car_mask, offset)
-        return poi
-
-    def reset(self):
-        self.x, self.y = self.START_POS
-        self.angle = 0
-        self.vel = 0
 
+def enemy(x, y, i):
+    screen.blit(enemyImg[i], (x, y))
 
-class PlayerCar(AbstractCar):
-    IMG = RED_CAR
-    START_POS = (180, 200)
 
-    def reduce_speed(self):
-        self.vel = max(self.vel - self.acceleration / 2, 0)
-        self.move()
-
-    def bounce(self):
-        self.vel = -self.vel
-        self.move()
-
-
-class ComputerCar(AbstractCar):
-    IMG = GREEN_CAR
-    START_POS = (150, 200)
-
-    def __init__(self, max_vel, rotation_vel, path=[]):
-        super().__init__(max_vel, rotation_vel)
-        self.path = path
-        self.current_point = 0
-        self.vel = max_vel
-
-    def draw_points(self, win):
-        for point in self.path:
-            pygame.draw.circle(win, (255, 0, 0), point, 5)
-
-    def draw(self, win):
-        super().draw(win)
-        # self.draw_points(win)
-
-    def calculate_angle(self):
-        target_x, target_y = self.path[self.current_point]
-        x_diff = target_x - self.x
-        y_diff = target_y - self.y
-
-        if y_diff == 0:
-            desired_radian_angle = math.pi / 2
-        else:
-            desired_radian_angle = math.atan(x_diff / y_diff)
-
-        if target_y > self.y:
-            desired_radian_angle += math.pi
-
-        difference_in_angle = self.angle - math.degrees(desired_radian_angle)
-        if difference_in_angle >= 180:
-            difference_in_angle -= 360
-
-        if difference_in_angle > 0:
-            self.angle -= min(self.rotation_vel, abs(difference_in_angle))
-        else:
-            self.angle += min(self.rotation_vel, abs(difference_in_angle))
-
-    def update_path_point(self):
-        target = self.path[self.current_point]
-        rect = pygame.Rect(
-            self.x, self.y, self.img.get_width(), self.img.get_height())
-        if rect.collidepoint(*target):
-            self.current_point += 1
-
-    def move(self):
-        if self.current_point >= len(self.path):
-            return
-
-        self.calculate_angle()
-        self.update_path_point()
-        super().move()
-
-    def next_level(self, level):
-        self.reset()
-        self.vel = self.max_vel + (level - 1) * 0.2
-        self.current_point = 0
-
-
-def draw(win, images, player_car, computer_car, game_info):
-    for img, pos in images:
-        win.blit(img, pos)
-
-    level_text = MAIN_FONT.render(
-        f"Level {game_info.level}", 1, (255, 255, 255))
-    win.blit(level_text, (10, HEIGHT - level_text.get_height() - 70))
-
-    time_text = MAIN_FONT.render(
-        f"Time: {game_info.get_level_time()}s", 1, (255, 255, 255))
-    win.blit(time_text, (10, HEIGHT - time_text.get_height() - 40))
-
-    vel_text = MAIN_FONT.render(
-        f"Vel: {round(player_car.vel, 1)}px/s", 1, (255, 255, 255))
-    win.blit(vel_text, (10, HEIGHT - vel_text.get_height() - 10))
-
-    player_car.draw(win)
-    computer_car.draw(win)
-    pygame.display.update()
-
-
-def move_player(player_car):
-    keys = pygame.key.get_pressed()
-    moved = False
-
-    if keys[pygame.K_LEFT]:
-        player_car.rotate(left=True)
-    if keys[pygame.K_RIGHT]:
-        player_car.rotate(right=True)
-    if keys[pygame.K_UP]:
-        moved = True
-        player_car.move_forward()
-    if keys[pygame.K_DOWN]:
-        moved = True
-        player_car.move_backward()
-
-    if not moved:
-        player_car.reduce_speed()
-
-
-def handle_collision(player_car, computer_car, game_info):
-    if player_car.collide(TRACK_BORDER_MASK) != None:
-        player_car.bounce()
-
-    computer_finish_poi_collide = computer_car.collide(
-        FINISH_MASK, *FINISH_POSITION)
-    if computer_finish_poi_collide != None:
-        blit_text_center(WIN, MAIN_FONT, "You lost!")
-        pygame.display.update()
-        pygame.time.wait(5000)
-        game_info.reset()
-        player_car.reset()
-        computer_car.reset()
-
-    player_finish_poi_collide = player_car.collide(
-        FINISH_MASK, *FINISH_POSITION)
-    if player_finish_poi_collide != None:
-        if player_finish_poi_collide[1] == 0:
-            player_car.bounce()
-        else:
-            game_info.next_level()
-            player_car.reset()
-            computer_car.next_level(game_info.level)
-
-
-run = True
-clock = pygame.time.Clock()
-images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
-          (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
-player_car = PlayerCar(4, 4)
-computer_car = ComputerCar(2, 4, PATH)
-game_info = GameInfo()
-
-while run:
-    clock.tick(FPS)
-
-    draw(WIN, images, player_car, computer_car, game_info)
-
-    while not game_info.started:
-        blit_text_center(
-            WIN, MAIN_FONT, f"Press any key to start level {game_info.level}!")
-        pygame.display.update()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                break
-
-            if event.type == pygame.KEYDOWN:
-                game_info.start_level()
+def fire_bullet(x, y):
+    global bullet_state
+    bullet_state = "fire"
+    screen.blit(bulletImg, (x + 16, y + 10))
 
+
+def isCollision(enemyX, enemyY, bulletX, bulletY):
+    distance = math.sqrt(math.pow(enemyX - bulletX, 2) + (math.pow(enemyY - bulletY, 2)))
+    if distance < 27:
+        return True
+    else:
+        return False
+
+
+# Game Loop
+running = True
+while running:
+
+    # RGB = Red, Green, Blue
+    screen.fill((0, 0, 0))
+    # Background Image
+    screen.blit(background, (0, 0))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            run = False
+            running = False
+
+        # if keystroke is pressed check whether its right or left
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                playerX_change = -5
+            if event.key == pygame.K_RIGHT:
+                playerX_change = 5
+            if event.key == pygame.K_SPACE:
+                if bullet_state is "ready":
+                    bulletSound = mixer.Sound("laser.wav")
+                    bulletSound.play()
+                    # Get the current x cordinate of the spaceship
+                    bulletX = playerX
+                    fire_bullet(bulletX, bulletY)
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
+                playerX_change = 0
+
+    # 5 = 5 + -0.1 -> 5 = 5 - 0.1
+    # 5 = 5 + 0.1
+
+    playerX += playerX_change
+    if playerX <= 0:
+        playerX = 0
+    elif playerX >= 736:
+        playerX = 736
+
+    # Enemy Movement
+    for i in range(num_of_enemies):
+
+        # Game Over
+        if enemyY[i] > 440:
+            for j in range(num_of_enemies):
+                enemyY[j] = 2000
+            game_over_text()
             break
 
-    move_player(player_car)
-    computer_car.move()
+        enemyX[i] += enemyX_change[i]
+        if enemyX[i] <= 0:
+            enemyX_change[i] = 4
+            enemyY[i] += enemyY_change[i]
+        elif enemyX[i] >= 736:
+            enemyX_change[i] = -4
+            enemyY[i] += enemyY_change[i]
 
-    handle_collision(player_car, computer_car, game_info)
+        # Collision
+        collision = isCollision(enemyX[i], enemyY[i], bulletX, bulletY)
+        if collision:
+            explosionSound = mixer.Sound("explosion.wav")
+            explosionSound.play()
+            bulletY = 480
+            bullet_state = "ready"
+            score_value += 1
+            enemyX[i] = random.randint(0, 736)
+            enemyY[i] = random.randint(50, 150)
 
-    if game_info.game_finished():
-        blit_text_center(WIN, MAIN_FONT, "You won the game!")
-        pygame.time.wait(5000)
-        game_info.reset()
-        player_car.reset()
-        computer_car.reset()
+        enemy(enemyX[i], enemyY[i], i)
 
+    # Bullet Movement
+    if bulletY <= 0:
+        bulletY = 480
+        bullet_state = "ready"
 
-pygame.quit()
+    if bullet_state is "fire":
+        fire_bullet(bulletX, bulletY)
+        bulletY -= bulletY_change
+
+    player(playerX, playerY)
+    show_score(textX, testY)
+    pygame.display.update()
